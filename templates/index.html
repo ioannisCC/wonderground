@@ -312,7 +312,7 @@
         .input-wrapper {
             position: relative;
             width: 100%;
-            overflow: hidden;
+            overflow: visible;
         }
         
         textarea {
@@ -611,19 +611,68 @@
             color: white;
         }
         
-        /* Size selector */
         .size-selector {
-            margin-bottom: 10px;
-        }
-        
-        .size-selector select {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
+            position: fixed;
+            top: auto;
+            bottom: 50%; /* Position above the container */
+            left: 20px;
+            width: 220px;
+            background: white;
             border-radius: 12px;
-            padding: 5px 10px;
-            font-size: 0.8rem;
-            width: 100%;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 12px;
+            z-index: 1000; /* Ensure it appears above other elements */
+            margin-bottom: 10px;
+            display: none;
+        }
+
+        [data-theme="dark"] .size-selector {
+            background: #2a2a2a;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Size dropdown header */
+        .size-selector {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        /* Size options list */
+        .size-selector ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .size-selector li {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+        }
+
+        .size-selector li:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="dark"] .size-selector li:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .size-selector li.selected {
+            font-weight: 500;
+        }
+
+        /* Checkmark for selected option */
+        .size-selector li.selected::before {
+            content: "✓";
+            margin-right: 8px;
         }
         
         /* Image utilities - bottom left toolset */
@@ -727,11 +776,16 @@
 
         </div>
         <div class="input-wrapper">
-            <div class="size-selector" style="text-align: center; display: none;">
-                <select id="size-select">
+            <div class="size-selector" style="display: none;">
+                <ul id="size-options">
+                    <li data-value="1024x1024">Square (1024×1024)</li>
+                    <li data-value="1024x1536" class="selected">Portrait (1024×1536)</li>
+                    <li data-value="1536x1024">Landscape (1536×1024)</li>
+                </ul>
+                <select id="size-select" style="display: none;">
                     <option value="1024x1024">Square (1024×1024)</option>
                     <option value="1536x1024">Landscape (1536×1024)</option>
-                    <option value="1024x1536">Portrait (1024×1536)</option>
+                    <option value="1024x1536" selected>Portrait (1024×1536)</option>
                     <option value="auto">Auto</option>
                 </select>
             </div>
@@ -771,16 +825,51 @@
             const imagePreviewContainer = document.getElementById('image-preview-container');
             const uploadImageBtn = document.getElementById('upload-image-btn');
             const sizeToggleBtn = document.getElementById('size-toggle-btn');
-            const sizeSelect = document.getElementById('size-select');
             const sizeSelector = document.querySelector('.size-selector');
+            const sizeOptions = document.getElementById('size-options');
+            const sizeSelect = document.getElementById('size-select');
             
             // Track current request to be able to cancel it
             let currentController = null;
             let isGenerating = false;
             
-            // Toggle size selector visibility
-            sizeToggleBtn.addEventListener('click', () => {
-                sizeSelector.style.display = sizeSelector.style.display === 'none' ? 'block' : 'none';
+            // Toggle size dropdown when clicking the size button
+            sizeToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent clicks from propagating
+                
+                // Toggle the dropdown visibility
+                if (sizeSelector.style.display === 'none' || !sizeSelector.style.display) {
+                    sizeSelector.style.display = 'block';
+                } else {
+                    sizeSelector.style.display = 'none';
+                }
+            });
+            
+            // Handle clicking on options in the dropdown
+            if (sizeOptions) {
+                sizeOptions.addEventListener('click', (e) => {
+                    const item = e.target.closest('li');
+                    if (!item) return;
+                    
+                    // Update selected class
+                    const allOptions = sizeOptions.querySelectorAll('li');
+                    allOptions.forEach(option => option.classList.remove('selected'));
+                    item.classList.add('selected');
+                    
+                    // Update the hidden select value
+                    const value = item.getAttribute('data-value');
+                    sizeSelect.value = value;
+                    
+                    // Hide dropdown after selection
+                    sizeSelector.style.display = 'none';
+                });
+            }
+            
+            // Close dropdown when clicking anywhere else
+            document.addEventListener('click', (e) => {
+                if (!sizeSelector.contains(e.target) && e.target !== sizeToggleBtn) {
+                    sizeSelector.style.display = 'none';
+                }
             });
             
             // Connect upload button to file input

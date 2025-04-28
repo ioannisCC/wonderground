@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Head content remains the same -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WonderGround</title>
@@ -14,7 +15,7 @@
         :root {
             --primary-color: #1a1a1a;
             --secondary-color: #f9f9f9;
-            --accent-color: #ffffff;
+            --accent-color: #ffrgb(5, 5, 5)
             --bg-color: #ffffff;
             --text-color: #1a1a1a;
             --card-bg: #ffffff;
@@ -225,26 +226,26 @@
         }
         
         /* Prompt image preview styles */
-        .prompt-image-preview {
+        .image-preview {
             position: relative;
             width: 60px;
             height: 60px;
             border-radius: var(--border-radius);
             overflow: hidden;
-            margin-right: 10px;
+            margin-right: 5px;
             flex-shrink: 0;
         }
         
-        .prompt-image-preview img {
+        .image-preview img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
         
-        .prompt-image-preview .remove-preview {
+        .image-preview .remove-preview {
             position: absolute;
-            top: 0;
-            right: 0;
+            top: 4px;
+            right: 4px;
             background: rgba(0, 0, 0, 0.6);
             color: white;
             border: none;
@@ -255,6 +256,13 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .image-preview:hover .remove-preview {
+            opacity: 1;
         }
         
         /* Floating glass-like input container */
@@ -285,7 +293,6 @@
         .app-logo {
             max-width: 50px;
             height: auto;
-            margin-bottom: 8px;
             transition: opacity 0.3s ease;
         }
         
@@ -330,13 +337,13 @@
             right: 12px;
             top: 50%;
             transform: translateY(-50%);
-            background-color: transparent;
-            color: var(--text-color);
+            background-color: var(--primary-color);
+            color: var(--secondary-color);
             border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 500;
-            transition: var(--transition);
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -357,12 +364,13 @@
             right: 12px;
             top: 50%;
             transform: translateY(-50%);
-            background-color: transparent;
-            color: var(--text-color);
+            background-color: var(--primary-color);
+            color: var(--secondary-color);
             border: none;
             cursor: pointer;
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 500;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
             transition: var(--transition);
             display: none; /* Hidden by default */
             align-items: center;
@@ -575,6 +583,7 @@
         ::placeholder {
             color: rgba(128, 128, 128, 0.7);
             opacity: 1;
+            margin-bottom: 0.5rem;
         }
 
         .btn.overlay-btn {
@@ -597,6 +606,64 @@
             background-color: black;
             color: white;
         }
+        
+        /* Size selector */
+        .size-selector {
+            margin-bottom: 10px;
+        }
+        
+        .size-selector select {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            width: 100%;
+        }
+        
+        /* Image utilities - bottom left toolset */
+        .input-utilities {
+            position: absolute;
+            bottom: 16px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+        
+        .utility-btn {
+            background: transparent;
+            color: var(--text-color);
+            opacity: 0.7;
+            border: none;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s ease;
+        }
+        
+        .utility-btn:hover {
+            opacity: 1;
+        }
+        
+        .utility-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        #image-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+            padding: 0 60px 0 20px;
+        }
     </style>
 </head>
 <body data-theme="light">    
@@ -604,7 +671,8 @@
         <div class="chat-container" id="chat-container">
             <div class="app-title">
                 <img src="/assets/logo_icon-05.svg" alt="AiwonderLAB" class="welcome-logo light-logo" style="max-width: 180px; margin-bottom: 20px; display: block; margin-left: auto; margin-right: auto;">
-                <img src="/assets/logo_icon-06.svg" alt="AiwonderLAB" class="welcome-logo dark-logo" style="max-width: 180px; margin-bottom: 20px; display: block; margin-left: auto; margin-right: auto; display: none;">            </div>
+                <img src="/assets/logo_icon-06.svg" alt="AiwonderLAB" class="welcome-logo dark-logo" style="max-width: 180px; margin-bottom: 20px; display: block; margin-left: auto; margin-right: auto; display: none;">
+            </div>
         </div>
     </main>
     
@@ -636,11 +704,39 @@
     
     <div class="input-container">
         <div class="app-info">
+            <div class="input-utilities">
+                <button class="utility-btn" id="upload-image-btn" title="Add reference image">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                </button>
+                <button class="utility-btn" id="size-toggle-btn" title="Select image size">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                    </svg>
+                </button>
+                <input type="file" id="image-upload" accept="image/png, image/jpeg, image/jpg, image/heic, image/webp" style="display: none;" multiple>
+            </div>
             <img src="/assets/logo_icon-01.svg" alt="Image Generator" class="app-logo light-logo">
             <img src="/assets/logo_icon-02.svg" alt="Image Generator" class="app-logo dark-logo" style="display: none;">
         </div>
         <div class="input-wrapper">
+            <div class="size-selector" style="text-align: center; display: none;">
+                <select id="size-select">
+                    <option value="1024x1024">Square (1024×1024)</option>
+                    <option value="1536x1024">Landscape (1536×1024)</option>
+                    <option value="1024x1536">Portrait (1024×1536)</option>
+                    <option value="auto">Auto</option>
+                </select>
+            </div>
+            
+            <div id="image-preview-container"></div>
+            
             <textarea id="prompt-input" placeholder="Wonder..."></textarea>
+            
             <button id="generate-btn" class="send-btn" type="button">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -666,10 +762,26 @@
             const themeToggle = document.getElementById('themeToggle');
             const lightIcon = document.getElementById('lightIcon');
             const darkIcon = document.getElementById('darkIcon');
+            const imageUpload = document.getElementById('image-upload');
+            const imagePreviewContainer = document.getElementById('image-preview-container');
+            const uploadImageBtn = document.getElementById('upload-image-btn');
+            const sizeToggleBtn = document.getElementById('size-toggle-btn');
+            const sizeSelect = document.getElementById('size-select');
+            const sizeSelector = document.querySelector('.size-selector');
             
             // Track current request to be able to cancel it
             let currentController = null;
             let isGenerating = false;
+            
+            // Toggle size selector visibility
+            sizeToggleBtn.addEventListener('click', () => {
+                sizeSelector.style.display = sizeSelector.style.display === 'none' ? 'block' : 'none';
+            });
+            
+            // Connect upload button to file input
+            uploadImageBtn.addEventListener('click', () => {
+                imageUpload.click();
+            });
             
             // Function to toggle between generate and stop buttons
             const toggleButtons = (generating) => {
@@ -725,7 +837,6 @@
                 }, 50);
                 
                 document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
-                
             };
             
             // Function to close modal with animation
@@ -744,6 +855,55 @@
                     document.body.style.overflow = 'auto'; // Re-enable scrolling
                 }, 500); // Match this with the animation duration
             };
+            
+            // Function to clear all image previews
+            const clearImagePreviews = () => {
+                while (imagePreviewContainer.firstChild) {
+                    imagePreviewContainer.removeChild(imagePreviewContainer.firstChild);
+                }
+            };
+            
+            // Image upload handling
+            imageUpload.addEventListener('change', (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (!file.type.startsWith('image/')) continue;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const imgSrc = event.target.result;
+                        addImagePreview(imgSrc, file.name);
+                    };
+                    reader.readAsDataURL(file);
+                }
+                
+                // Reset the file input so the same file can be selected again
+                e.target.value = '';
+            });
+            
+            function addImagePreview(imgSrc, fileName) {
+                const previewContainer = document.createElement('div');
+                previewContainer.className = 'image-preview';
+                
+                const img = document.createElement('img');
+                img.src = imgSrc;
+                img.dataset.fileName = fileName;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = '×';
+                removeBtn.className = 'remove-preview';
+                
+                removeBtn.addEventListener('click', () => {
+                    previewContainer.remove();
+                });
+                
+                previewContainer.appendChild(img);
+                previewContainer.appendChild(removeBtn);
+                imagePreviewContainer.appendChild(previewContainer);
+            }
             
             // Theme toggle functionality
             themeToggle.addEventListener('click', () => {
@@ -790,9 +950,6 @@
                 this.style.height = (this.scrollHeight) + 'px';
             });
             
-            // Example prompt
-            // promptInput.value = "Inside a softly lit, traditional Japanese sushi bar, highly realistic humanoid fish chefs prepare elegant, surreal sushi...";
-            
             // Handle Enter key (Send on Enter, new line on Shift+Enter)
             promptInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -822,6 +979,7 @@
                 }
             });
             
+            // Generate button click handler
             generateBtn.addEventListener('click', async () => {
                 const prompt = promptInput.value.trim();
                 
@@ -836,11 +994,11 @@
                 const inputWrapper = document.querySelector('.input-wrapper');
                 inputWrapper.appendChild(flyingText);
                 
-                // Clear the input after animation starts
+                // Clear the input but keep the image previews
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
                 
-                // Create AI message with loader (without user message)
+                // Create AI message with loader
                 const aiMessageElement = document.createElement('div');
                 aiMessageElement.className = 'message';
                 aiMessageElement.innerHTML = `
@@ -861,14 +1019,73 @@
                 toggleButtons(true);
                 
                 try {
-                    const response = await fetch('/generate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ prompt }),
-                        signal // Pass the signal to make it abortable
+                    let response;
+                    const selectedSize = document.getElementById('size-select').value;
+                    
+                    // Check if there are any image previews
+                    const previewContainers = document.querySelectorAll('.image-preview');
+                    
+                    // Store original prompt and images for potential reimport
+                    const originalPrompt = prompt;
+                    const originalPreviews = Array.from(previewContainers).map(container => {
+                        const img = container.querySelector('img');
+                        return {
+                            src: img.src,
+                            fileName: img.dataset.fileName
+                        };
                     });
+                    
+                    if (previewContainers.length > 0) {
+                        // We have images to upload - use FormData
+                        const formData = new FormData();
+                        formData.append('prompt', prompt);
+                        formData.append('size', selectedSize);
+                        
+                        // Add all images from preview containers
+                        previewContainers.forEach((container, index) => {
+                            const img = container.querySelector('img');
+                            
+                            // Convert data URL to Blob
+                            const imgSrc = img.src;
+                            if (imgSrc.startsWith('data:image')) {
+                                const byteString = atob(imgSrc.split(',')[1]);
+                                const mimeString = imgSrc.split(',')[0].split(':')[1].split(';')[0];
+                                const ab = new ArrayBuffer(byteString.length);
+                                const ia = new Uint8Array(ab);
+                                
+                                for (let i = 0; i < byteString.length; i++) {
+                                    ia[i] = byteString.charCodeAt(i);
+                                }
+                                
+                                const blob = new Blob([ab], { type: mimeString });
+                                const fileName = img.dataset.fileName || `image_${index}.${mimeString.split('/')[1]}`;
+                                formData.append(`image_${index}`, blob, fileName);
+                            }
+                        });
+                        
+                        // Clear all image previews after storing them
+                        clearImagePreviews();
+                        
+                        // Send the request with FormData
+                        response = await fetch('/generate', {
+                            method: 'POST',
+                            body: formData,
+                            signal
+                        });
+                    } else {
+                        // No images, just send JSON data
+                        response = await fetch('/generate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                                prompt,
+                                size: selectedSize 
+                            }),
+                            signal
+                        });
+                    }
                     
                     const data = await response.json();
                     
@@ -929,9 +1146,6 @@
                     const reimportBtn = aiMessage.querySelector('.reimport-btn');
                     const img = aiMessage.querySelector('.generated-img');
                     
-                    // Store original prompt for reimport functionality
-                    const originalPrompt = prompt;
-                    
                     // Download button functionality
                     downloadBtn.addEventListener('click', (e) => {
                         e.stopPropagation(); // Prevent opening modal when clicking download
@@ -958,29 +1172,10 @@
                     // Add to prompt button functionality
                     addToPromptBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        
-                        // Create a small preview of the image to show in prompt input area
-                        const previewContainer = document.createElement('div');
-                        previewContainer.className = 'prompt-image-preview';
-                        previewContainer.innerHTML = `
-                            <img src="${img.src}" alt="Reference image">
-                            <button class="remove-preview">×</button>
-                        `;
-                        
-                        // Insert it before the textarea
-                        const inputWrapper = document.querySelector('.input-wrapper');
-                        inputWrapper.insertBefore(previewContainer, promptInput);
-                        
-                        // Add event listener to remove preview
-                        previewContainer.querySelector('.remove-preview').addEventListener('click', () => {
-                            previewContainer.remove();
-                        });
+                        addImagePreview(img.src, `generated_${uniqueId}.png`);
                         
                         // Focus on the textarea for continuing the prompt
                         promptInput.focus();
-                        
-                        // Store the image data in a dataset for submission
-                        promptInput.dataset.referenceImage = img.src;
                     });
                     
                     // Reimport button functionality
@@ -992,23 +1187,10 @@
                         promptInput.style.height = 'auto';
                         promptInput.style.height = promptInput.scrollHeight + 'px';
                         
-                        // If there are any reference images stored, add them back
-                        if (promptInput.dataset.referenceImage) {
-                            const previewContainer = document.createElement('div');
-                            previewContainer.className = 'prompt-image-preview';
-                            previewContainer.innerHTML = `
-                                <img src="${promptInput.dataset.referenceImage}" alt="Reference image">
-                                <button class="remove-preview">×</button>
-                            `;
-                            
-                            const inputWrapper = document.querySelector('.input-wrapper');
-                            inputWrapper.insertBefore(previewContainer, promptInput);
-                            
-                            previewContainer.querySelector('.remove-preview').addEventListener('click', () => {
-                                previewContainer.remove();
-                                delete promptInput.dataset.referenceImage;
-                            });
-                        }
+                        // Restore original image previews
+                        originalPreviews.forEach(preview => {
+                            addImagePreview(preview.src, preview.fileName);
+                        });
                         
                         // Focus on the prompt input
                         promptInput.focus();

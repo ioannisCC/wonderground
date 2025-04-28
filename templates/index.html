@@ -1075,259 +1075,280 @@
             
             // Generate button click handler
             generateBtn.addEventListener('click', async () => {
-                const prompt = promptInput.value.trim();
+            const prompt = promptInput.value.trim();
+            
+            if (!prompt) {
+                return;
+            }
+            
+            // Create flying text animation
+            const flyingText = document.createElement('div');
+            flyingText.className = 'flying-text';
+            flyingText.textContent = prompt;
+            const inputWrapper = document.querySelector('.input-wrapper');
+            inputWrapper.appendChild(flyingText);
+            
+            // Clear the input but keep the image previews
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            
+            // Create AI message with loader
+            const aiMessageElement = document.createElement('div');
+            aiMessageElement.className = 'message';
+            aiMessageElement.innerHTML = `
+                <div class="ai-message">
+                    <div class="loader"></div>
+                </div>
+            `;
+            chatContainer.appendChild(aiMessageElement);
+            
+            // Scroll to bottom with extra space
+            chatContainer.scrollTop = chatContainer.scrollHeight + 100;
+            
+            // Create a new AbortController for this request
+            currentController = new AbortController();
+            const signal = currentController.signal;
+            
+            // Toggle to stop button
+            toggleButtons(true);
+            
+            try {
+                let response;
+                const selectedSize = document.getElementById('size-select').value;
                 
-                if (!prompt) {
-                    return;
+                // Check if there are any image previews
+                const previewContainers = document.querySelectorAll('.image-preview');
+                
+                // Store original preview data
+                const originalImagesData = [];
+                previewContainers.forEach(container => {
+                    const img = container.querySelector('img');
+                    originalImagesData.push({
+                        src: img.src,
+                        fileName: img.dataset.fileName || 'image.png'
+                    });
+                });
+                
+                if (previewContainers.length > 0) {
+                    // We have images to upload - use FormData
+                    const formData = new FormData();
+                    formData.append('prompt', prompt);
+                    formData.append('size', selectedSize);
+                    
+                    // Add all images from preview containers
+                    previewContainers.forEach((container, index) => {
+                        const img = container.querySelector('img');
+                        
+                        // Convert data URL to Blob
+                        const imgSrc = img.src;
+                        if (imgSrc.startsWith('data:image')) {
+                            const byteString = atob(imgSrc.split(',')[1]);
+                            const mimeString = imgSrc.split(',')[0].split(':')[1].split(';')[0];
+                            const ab = new ArrayBuffer(byteString.length);
+                            const ia = new Uint8Array(ab);
+                            
+                            for (let i = 0; i < byteString.length; i++) {
+                                ia[i] = byteString.charCodeAt(i);
+                            }
+                            
+                            const blob = new Blob([ab], { type: mimeString });
+                            const fileName = img.dataset.fileName || `image_${index}.${mimeString.split('/')[1]}`;
+                            formData.append(`image_${index}`, blob, fileName);
+                        }
+                    });
+                    
+                    // Clear all image previews after storing them
+                    clearImagePreviews();
+                    
+                    // Send the request with FormData
+                    response = await fetch('/generate', {
+                        method: 'POST',
+                        body: formData,
+                        signal
+                    });
+                } else {
+                    // No images, just send JSON data
+                    response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            prompt,
+                            size: selectedSize 
+                        }),
+                        signal
+                    });
                 }
                 
-                // Create flying text animation
-                const flyingText = document.createElement('div');
-                flyingText.className = 'flying-text';
-                flyingText.textContent = prompt;
-                const inputWrapper = document.querySelector('.input-wrapper');
-                inputWrapper.appendChild(flyingText);
+                const data = await response.json();
                 
-                // Clear the input but keep the image previews
-                promptInput.value = '';
-                promptInput.style.height = 'auto';
+                if (data.error) {
+                    throw new Error(data.error);
+                }
                 
-                // Create AI message with loader
-                const aiMessageElement = document.createElement('div');
-                aiMessageElement.className = 'message';
-                aiMessageElement.innerHTML = `
-                    <div class="ai-message">
-                        <div class="loader"></div>
+                // Update AI message with generated image
+                const loader = aiMessageElement.querySelector('.loader');
+                if (loader) {
+                    loader.remove();
+                }
+                
+                const aiMessage = aiMessageElement.querySelector('.ai-message');
+                const uniqueId = Date.now();
+                
+                aiMessage.innerHTML = `
+                    <img id="img-${uniqueId}" src="data:image/png;base64,${data.image}" alt="Generated image" class="generated-img" data-id="${uniqueId}">
+                    <div class="image-prompt-overlay">
+                        <div class="prompt-text">${prompt}</div>
+                    </div>
+                    <div class="image-controls">
+                        <div class="controls-left">
+                            <button class="image-btn fullscreen-btn" data-id="${uniqueId}" aria-label="View fullscreen">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="controls-right">
+                            <button class="image-btn download-btn" data-id="${uniqueId}" aria-label="Download image">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                            </button>
+                            <button class="image-btn add-to-prompt-btn" data-id="${uniqueId}" aria-label="Add to prompt">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button class="image-btn reimport-btn" data-id="${uniqueId}" aria-label="Reimport references and prompt">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 2v6h6"></path>
+                                    <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 `;
-                chatContainer.appendChild(aiMessageElement);
                 
-                // Scroll to bottom with extra space
-                chatContainer.scrollTop = chatContainer.scrollHeight + 100;
+                // Store the original prompt and image data with the image element
+                const imgEl = aiMessage.querySelector('.generated-img');
+                imgEl.dataset.originalPrompt = prompt;
+                imgEl.dataset.originalImages = JSON.stringify(originalImagesData);
                 
-                // Create a new AbortController for this request
-                currentController = new AbortController();
-                const signal = currentController.signal;
+                // Add event listeners for image and buttons
+                const downloadBtn = aiMessage.querySelector('.download-btn');
+                const fullscreenBtn = aiMessage.querySelector('.fullscreen-btn');
+                const addToPromptBtn = aiMessage.querySelector('.add-to-prompt-btn');
+                const reimportBtn = aiMessage.querySelector('.reimport-btn');
+                const img = aiMessage.querySelector('.generated-img');
                 
-                // Toggle to stop button
-                toggleButtons(true);
+                // Download button functionality
+                downloadBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent opening modal when clicking download
+                    const imgEl = document.getElementById(`img-${uniqueId}`);
+                    const link = document.createElement('a');
+                    link.href = imgEl.src;
+                    link.download = `generated-image-${uniqueId}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
                 
-                try {
-                    let response;
-                    const selectedSize = document.getElementById('size-select').value;
+                // Fullscreen button functionality
+                fullscreenBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent image click event
+                    openModal(img.src, uniqueId);
+                });
+                
+                // Image click also opens modal
+                img.addEventListener('click', () => {
+                    openModal(img.src, uniqueId);
+                });
+                
+                // Add to prompt button functionality
+                addToPromptBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    addImagePreview(img.src, `generated_${uniqueId}.png`);
                     
-                    // Check if there are any image previews
-                    const previewContainers = document.querySelectorAll('.image-preview');
+                    // Focus on the textarea for continuing the prompt
+                    promptInput.focus();
+                });
+                
+                // Reimport button functionality - fixed to use data attributes
+                reimportBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     
-                    // Store original prompt and images for potential reimport
-                    const originalPrompt = prompt;
-                    const originalPreviews = Array.from(previewContainers).map(container => {
-                        const img = container.querySelector('img');
-                        return {
-                            src: img.src,
-                            fileName: img.dataset.fileName
-                        };
-                    });
+                    const imgEl = document.getElementById(`img-${uniqueId}`);
+                    if (!imgEl) return;
                     
-                    if (previewContainers.length > 0) {
-                        // We have images to upload - use FormData
-                        const formData = new FormData();
-                        formData.append('prompt', prompt);
-                        formData.append('size', selectedSize);
-                        
-                        // Add all images from preview containers
-                        previewContainers.forEach((container, index) => {
-                            const img = container.querySelector('img');
-                            
-                            // Convert data URL to Blob
-                            const imgSrc = img.src;
-                            if (imgSrc.startsWith('data:image')) {
-                                const byteString = atob(imgSrc.split(',')[1]);
-                                const mimeString = imgSrc.split(',')[0].split(':')[1].split(';')[0];
-                                const ab = new ArrayBuffer(byteString.length);
-                                const ia = new Uint8Array(ab);
-                                
-                                for (let i = 0; i < byteString.length; i++) {
-                                    ia[i] = byteString.charCodeAt(i);
-                                }
-                                
-                                const blob = new Blob([ab], { type: mimeString });
-                                const fileName = img.dataset.fileName || `image_${index}.${mimeString.split('/')[1]}`;
-                                formData.append(`image_${index}`, blob, fileName);
-                            }
-                        });
-                        
-                        // Clear all image previews after storing them
-                        clearImagePreviews();
-                        
-                        // Send the request with FormData
-                        response = await fetch('/generate', {
-                            method: 'POST',
-                            body: formData,
-                            signal
-                        });
-                    } else {
-                        // No images, just send JSON data
-                        response = await fetch('/generate', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ 
-                                prompt,
-                                size: selectedSize 
-                            }),
-                            signal
-                        });
-                    }
+                    // Retrieve original prompt from data attribute
+                    const originalPrompt = imgEl.dataset.originalPrompt || '';
                     
-                    const data = await response.json();
+                    // Fill the prompt input with the original prompt
+                    promptInput.value = originalPrompt;
+                    promptInput.style.height = 'auto';
+                    promptInput.style.height = promptInput.scrollHeight + 'px';
                     
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    
-                    // Update AI message with generated image
-                    const loader = aiMessageElement.querySelector('.loader');
-                    if (loader) {
-                        loader.remove();
-                    }
-                    
-                    const aiMessage = aiMessageElement.querySelector('.ai-message');
-                    const uniqueId = Date.now();
-                    
-                    aiMessage.innerHTML = `
-                        <img id="img-${uniqueId}" src="data:image/png;base64,${data.image}" alt="Generated image" class="generated-img" data-id="${uniqueId}">
-                        <div class="image-prompt-overlay">
-                            <div class="prompt-text">${prompt}</div>
-                        </div>
-                        <div class="image-controls">
-                            <div class="controls-left">
-                                <button class="image-btn fullscreen-btn" data-id="${uniqueId}" aria-label="View fullscreen">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="controls-right">
-                                <button class="image-btn download-btn" data-id="${uniqueId}" aria-label="Download image">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                        <polyline points="7 10 12 15 17 10"></polyline>
-                                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                                    </svg>
-                                </button>
-                                <button class="image-btn add-to-prompt-btn" data-id="${uniqueId}" aria-label="Add to prompt">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                    </svg>
-                                </button>
-                                <button class="image-btn reimport-btn" data-id="${uniqueId}" aria-label="Reimport references and prompt">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M3 2v6h6"></path>
-                                        <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Add event listeners for image and buttons
-                    const downloadBtn = aiMessage.querySelector('.download-btn');
-                    const fullscreenBtn = aiMessage.querySelector('.fullscreen-btn');
-                    const addToPromptBtn = aiMessage.querySelector('.add-to-prompt-btn');
-                    const reimportBtn = aiMessage.querySelector('.reimport-btn');
-                    const img = aiMessage.querySelector('.generated-img');
-                    
-                    // Download button functionality
-                    downloadBtn.addEventListener('click', (e) => {
-                        e.stopPropagation(); // Prevent opening modal when clicking download
-                        const imgEl = document.getElementById(`img-${uniqueId}`);
-                        const link = document.createElement('a');
-                        link.href = imgEl.src;
-                        link.download = `generated-image-${uniqueId}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    });
-                    
-                    // Fullscreen button functionality
-                    fullscreenBtn.addEventListener('click', (e) => {
-                        e.stopPropagation(); // Prevent image click event
-                        openModal(img.src, uniqueId);
-                    });
-                    
-                    // Image click also opens modal
-                    img.addEventListener('click', () => {
-                        openModal(img.src, uniqueId);
-                    });
-                    
-                    // Add to prompt button functionality
-                    addToPromptBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        addImagePreview(img.src, `generated_${uniqueId}.png`);
-                        
-                        // Focus on the textarea for continuing the prompt
-                        promptInput.focus();
-                    });
-                    
-                    // Reimport button functionality
-                    reimportBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        
-                        // Fill the prompt input with the original prompt
-                        promptInput.value = originalPrompt;
-                        promptInput.style.height = 'auto';
-                        promptInput.style.height = promptInput.scrollHeight + 'px';
-                        
-                        // Restore original image previews
-                        originalPreviews.forEach(preview => {
+                    // Retrieve and restore original image previews
+                    try {
+                        const originalImagesData = JSON.parse(imgEl.dataset.originalImages || '[]');
+                        originalImagesData.forEach(preview => {
                             addImagePreview(preview.src, preview.fileName);
                         });
-                        
-                        // Focus on the prompt input
-                        promptInput.focus();
-                    });
-                    
-                    // Extra scroll to ensure the image is fully visible with its controls
-                    setTimeout(() => {
-                        chatContainer.scrollTop = chatContainer.scrollHeight + 100;
-                    }, 100);
-                    
-                    // Remove flying text after animation completes
-                    setTimeout(() => {
-                        if (flyingText.parentNode) {
-                            flyingText.parentNode.removeChild(flyingText);
-                        }
-                    }, 800);
-                    
-                } catch (error) {
-                    // Check if this was an abort error (user canceled)
-                    if (error.name === 'AbortError') {
-                        console.log('Request was canceled');
-                    } else {
-                        // Update AI message with error
-                        const aiContent = aiMessageElement.querySelector('.ai-message');
-                        aiContent.innerHTML = `<div class="message-content">Error: ${error.message}</div>`;
+                    } catch (error) {
+                        console.error("Error restoring image previews:", error);
                     }
                     
-                    // Remove flying text on error
+                    // Focus on the prompt input
+                    promptInput.focus();
+                });
+                
+                // Extra scroll to ensure the image is fully visible with its controls
+                setTimeout(() => {
+                    chatContainer.scrollTop = chatContainer.scrollHeight + 100;
+                }, 100);
+                
+                // Remove flying text after animation completes
+                setTimeout(() => {
                     if (flyingText.parentNode) {
                         flyingText.parentNode.removeChild(flyingText);
                     }
-                } finally {
-                    // Reset button state
-                    toggleButtons(false);
-                    
-                    // Clear the abort controller
-                    currentController = null;
-                    
-                    // Focus on the textarea
-                    promptInput.focus();
+                }, 800);
+                
+            } catch (error) {
+                // Check if this was an abort error (user canceled)
+                if (error.name === 'AbortError') {
+                    console.log('Request was canceled');
+                } else {
+                    // Update AI message with error
+                    const aiContent = aiMessageElement.querySelector('.ai-message');
+                    aiContent.innerHTML = `<div class="message-content">Error: ${error.message}</div>`;
                 }
-            });
+                
+                // Remove flying text on error
+                if (flyingText.parentNode) {
+                    flyingText.parentNode.removeChild(flyingText);
+                }
+            } finally {
+                // Reset button state - this ensures the generate button reappears
+                toggleButtons(false);
+                
+                // Clear the abort controller
+                currentController = null;
+                
+                // Focus on the textarea
+                promptInput.focus();
+                
+                // Double-check that generate button is visible and stop button is hidden
+                generateBtn.style.display = 'flex';
+                stopBtn.style.display = 'none';
+                generateBtn.disabled = false;
+            }
         });
+    });
     </script>
 </body>
 </html>

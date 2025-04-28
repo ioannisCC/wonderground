@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import base64
 from openai import OpenAI
 import os
@@ -7,21 +7,63 @@ from dotenv import load_dotenv
 import pyheif
 from PIL import Image
 import io
+import secrets  # For generating secure tokens
 
 # load environment variables
 load_dotenv()
 
 app = Flask(__name__, static_url_path='/assets', static_folder='assets')
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))  # Set a secure secret key
 client = OpenAI()
 
 # Valid image sizes for gpt-image-1
 VALID_SIZES = ["1024x1024", "1536x1024", "1024x1536", "auto"]
 
+# Company email domain for authentication
+COMPANY_DOMAIN = "viralpassion.gr"  # Change to your company domain
+
+# Simple password-based authentication (replace with environment variable in production)
+COMPANY_PASSWORD = os.environ.get('COMPANY_PASSWORD', 'your-secure-password')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        
+        # Check if email ends with company domain and password is correct
+        if email.endswith('@' + COMPANY_DOMAIN) and password == COMPANY_PASSWORD:
+            session['authenticated'] = True
+            session['email'] = email
+            return redirect(url_for('index'))
+        else:
+            error = "Invalid credentials. Please try again."
+    
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    session.pop('email', None)
+    return redirect(url_for('login'))
+
+def login_required(route_function):
+    """Decorator to require login for routes"""
+    def wrapper(*args, **kwargs):
+        if session.get('authenticated'):
+            return route_function(*args, **kwargs)
+        return redirect(url_for('login'))
+    wrapper.__name__ = route_function.__name__
+    return wrapper
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 @app.route('/generate', methods=['POST'])
+@login_required
 def generate_image():
     # Check if we're dealing with a form submission with files
     is_form_data = request.content_type and 'multipart/form-data' in request.content_type

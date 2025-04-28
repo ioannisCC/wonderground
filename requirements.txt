@@ -3,3 +3,4 @@ openai==1.6.1
 python-dotenv==1.0.0
 pillow==10.0.0
 pyheif==0.7.0
+gunicorn==20.1.0

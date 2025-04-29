@@ -36,11 +36,9 @@ instance/
 .webassets-cache
 
 # Generated images
-*.png
 *.jpg
 *.jpeg
 *.gif
-otter.png
 
 # IDE specific files
 .idea/

@@ -51,20 +51,34 @@ app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = os.environ.get("GOOGLE_OAUTH_CLIENT_S
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
 # Enforce HTTPS with Talisman
+# Properly configured CSP that will work with your application
 csp = {
     'default-src': '\'self\'',
-    'img-src': ['\'self\'', 'data:', 'https://lh3.googleusercontent.com'],
-    'script-src': ['\'self\'', '\'unsafe-inline\''],  # Modify as needed
-    'style-src': ['\'self\'', '\'unsafe-inline\'']    # Modify as needed
+    'img-src': ['\'self\'', 'data:', '*'],  # Allow images from any source and data URLs
+    'script-src': [
+        '\'self\'', 
+        '\'unsafe-inline\'',  # Required for inline scripts
+    ],
+    'style-src': [
+        '\'self\'', 
+        '\'unsafe-inline\'',  # Required for inline styles
+        'https://fonts.googleapis.com',  # Google Fonts CSS
+    ],
+    'font-src': [
+        '\'self\'',
+        'https://fonts.gstatic.com',  # Google Fonts files
+    ],
+    'connect-src': '\'self\''
 }
+
+# Apply this to Talisman without nonces
 talisman = Talisman(
     app,
     content_security_policy=csp,
-    content_security_policy_nonce_in=['script-src', 'style-src'],
-    force_https=os.environ.get("ENVIRONMENT") == "production",
-    strict_transport_security=True,
-    strict_transport_security_preload=True,
-    session_cookie_secure=os.environ.get("ENVIRONMENT") == "production",
+    content_security_policy_nonce_in=None,  # Don't use nonces
+    force_https=os.environ.get("ENVIRONMENT") == "production",  # Only force HTTPS in production
+    strict_transport_security=os.environ.get("ENVIRONMENT") == "production",  # Only use HSTS in production
+    session_cookie_secure=os.environ.get("ENVIRONMENT") == "production",  # Only require secure cookies in production
     session_cookie_http_only=True
 )
 
@@ -309,4 +323,4 @@ def handle_exception(e):
 
 # For development only - in production, use a proper WSGI server
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)

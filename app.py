@@ -75,7 +75,7 @@ csp = {
 talisman = Talisman(
     app,
     content_security_policy=csp,
-    content_security_policy_nonce_in=None,  # Don't use nonces
+    content_security_policy_nonce_in=False,  # Don't use nonces
     force_https=os.environ.get("ENVIRONMENT") == "production",  # Only force HTTPS in production
     strict_transport_security=os.environ.get("ENVIRONMENT") == "production",  # Only use HSTS in production
     session_cookie_secure=os.environ.get("ENVIRONMENT") == "production",  # Only require secure cookies in production
@@ -91,7 +91,7 @@ limiter = Limiter(
 )
 
 # OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=300)
 
 # Company email domain for authentication
 COMPANY_DOMAIN = os.environ.get("COMPANY_DOMAIN", "viralpassion.gr")
@@ -101,7 +101,11 @@ VALID_SIZES = ["1024x1024", "1536x1024", "1024x1536", "auto"]
 
 # Create the Google OAuth blueprint
 google_bp = make_google_blueprint(
-    scope=["profile", "email"],
+    scope=[
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile"
+    ],
     redirect_to="google_callback"
 )
 app.register_blueprint(google_bp, url_prefix="/login")
@@ -129,7 +133,7 @@ def login():
         return redirect(url_for('index'))
     return render_template('login.html', error=error)
 
-@app.route('/login/google/callback')
+@app.route('/google_callback')
 def google_callback():
     if not google.authorized:
         app.logger.warning("Authentication failed - not authorized")
@@ -148,6 +152,7 @@ def google_callback():
         # Check if user's email belongs to the company domain
         if not email.endswith(f"@{COMPANY_DOMAIN}"):
             app.logger.warning(f"Unauthorized login attempt with email: {email}")
+            session.clear()
             # Clear the OAuth token
             token = google_bp.token
             if token:
@@ -179,6 +184,10 @@ def logout():
 @login_required
 @limiter.limit("20 per hour")  # Rate limit for image generation
 def generate_image():
+    # Save the original request data for resubmission
+    original_prompt = ""
+    original_size = "1024x1536"  # Default size
+    
     # Check if we're dealing with a form submission with files
     is_form_data = request.content_type and 'multipart/form-data' in request.content_type
     has_files = False
@@ -191,20 +200,22 @@ def generate_image():
     
     # Get common parameters
     if is_form_data:
-        prompt = request.form.get('prompt', '')
-        size = request.form.get('size', '1024x1024')
+        original_prompt = request.form.get('prompt', '')
+        original_size = request.form.get('size', '1024x1024')
     else:
         data = request.json or {}
-        prompt = data.get('prompt', '')
-        size = data.get('size', '1024x1024')
+        original_prompt = data.get('prompt', '')
+        original_size = data.get('size', '1024x1024')
     
     # Validate prompt
-    if not prompt:
-        return {'error': 'Prompt is required'}, 400
+    if not original_prompt:
+        return {'error': 'Prompt is required', 'original_prompt': '', 'original_size': original_size}, 400
     
     # Validate size
-    if size not in VALID_SIZES:
-        return {'error': f'Invalid size. Choose from: {", ".join(VALID_SIZES)}'}, 400
+    if original_size not in VALID_SIZES:
+        return {'error': f'Invalid size. Choose from: {", ".join(VALID_SIZES)}', 
+                'original_prompt': original_prompt, 
+                'original_size': '1024x1024'}, 400
     
     try:
         if is_form_data and has_files:
@@ -223,13 +234,23 @@ def generate_image():
                     file.seek(0)  # Reset file pointer to beginning
                     
                     if file_size > 25 * 1024 * 1024:
-                        return {'error': f'File {file.filename} exceeds the 25MB size limit.'}, 400
+                        return {
+                            'error': f'File {file.filename} exceeds the 25MB size limit.',
+                            'original_prompt': original_prompt,
+                            'original_size': original_size,
+                            'show_resubmit': True
+                        }, 400
                     
                     if ext in ['.png', '.jpg', '.jpeg', '.webp', '.heic']:
                         image_files.append(file)
             
             if not image_files:
-                return {'error': 'No supported image files uploaded. Please use PNG, JPG, JPEG, WEBP, or HEIC.'}, 400
+                return {
+                    'error': 'No supported image files uploaded. Please use PNG, JPG, JPEG, WEBP, or HEIC.',
+                    'original_prompt': original_prompt,
+                    'original_size': original_size,
+                    'show_resubmit': True
+                }, 400
             
             # Save the files temporarily as the OpenAI API needs file objects
             temp_files = []
@@ -278,8 +299,8 @@ def generate_image():
                 result = client.images.edit(
                     model="gpt-image-1",
                     image=image_param,
-                    prompt=prompt,
-                    size=size,
+                    prompt=original_prompt,
+                    size=original_size,
                     quality="high",
                 )
                 
@@ -301,8 +322,8 @@ def generate_image():
             # No images, just a prompt (use generate endpoint)
             result = client.images.generate(
                 model="gpt-image-1",
-                prompt=prompt,
-                size=size,
+                prompt=original_prompt,
+                size=original_size,
                 quality="high",
                 output_format="png",
                 moderation="low",
@@ -313,7 +334,24 @@ def generate_image():
             return {'success': True, 'image': image_base64}
     except Exception as e:
         app.logger.error(f"Error generating image: {str(e)}")
-        return {'error': str(e)}, 500
+        error_message = str(e)
+        
+        # Create user-friendly error messages
+        if "moderation_blocked" in error_message:
+            friendly_message = "Your request was rejected by content moderation. Please modify your prompt and try again."
+        elif "400" in error_message and "safety" in error_message.lower():
+            friendly_message = "Your request was rejected due to safety concerns. Please revise your prompt."
+        else:
+            friendly_message = "An error occurred while generating your image. Please try again."
+        
+        # Return both the user-friendly message and original data for resubmission
+        return {
+            'error': friendly_message,
+            'technical_details': error_message,
+            'original_prompt': original_prompt,
+            'original_size': original_size,
+            'show_resubmit': True
+        }, 500
 
 # Global error handler
 @app.errorhandler(Exception)
@@ -323,4 +361,4 @@ def handle_exception(e):
 
 # For development only - in production, use a proper WSGI server
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=False)

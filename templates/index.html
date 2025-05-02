@@ -717,6 +717,117 @@
             margin-bottom: 10px;
             padding: 0 60px 0 20px;
         }
+        
+        /* Error display styling */
+        .error-display {
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            margin: 0 auto;
+            max-width: 600px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        [data-theme="dark"] .error-display {
+            background-color: rgba(42, 42, 42, 0.95);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .error-icon {
+            color: #e53935;
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+
+        .error-message {
+            color: #e53935;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        [data-theme="dark"] .error-message {
+            color: #f44336;
+        }
+
+        .error-actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .error-btn {
+            background-color: var(--primary-color);
+            color: var(--secondary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 8px 16px;
+            transition: all 0.2s ease;
+        }
+
+        .error-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .error-details {
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .error-details summary {
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.7;
+            text-align: center;
+        }
+
+        .error-details pre {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+            max-height: 100px;
+            overflow: auto;
+            padding: 12px;
+            white-space: pre-wrap;
+        }
+
+        [data-theme="dark"] .error-details pre {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        .safety-tips {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            margin-top: 10px;
+            padding: 15px;
+            text-align: left;
+        }
+        
+        [data-theme="dark"] .safety-tips {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        .safety-tips p {
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .safety-tips ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+        
+        .safety-tips li {
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body data-theme="light">    
@@ -832,6 +943,24 @@
             // Track current request to be able to cancel it
             let currentController = null;
             let isGenerating = false;
+            
+            // Function to get safety tips based on error message
+            function getSafetyTips(errorMessage) {
+                if (errorMessage.includes("moderation_blocked") || errorMessage.includes("safety")) {
+                    return `
+                        <div class="safety-tips">
+                            <p>Tips for modifying your prompt:</p>
+                            <ul>
+                                <li>Avoid explicit content or violent descriptions</li>
+                                <li>Remove references to specific people</li>
+                                <li>Use more general, creative descriptions</li>
+                                <li>Focus on artistic or abstract concepts</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+                return '';
+            }
             
             // Toggle size dropdown when clicking the size button
             sizeToggleBtn.addEventListener('click', (e) => {
@@ -1112,23 +1241,22 @@
             // Toggle to stop button
             toggleButtons(true);
             
+            // Store original preview data
+            const originalImagesData = [];
+            const previewContainers = document.querySelectorAll('.image-preview');
+            previewContainers.forEach(container => {
+                const img = container.querySelector('img');
+                originalImagesData.push({
+                    src: img.src,
+                    fileName: img.dataset.fileName || 'image.png'
+                });
+            });
+            
             try {
                 let response;
                 const selectedSize = document.getElementById('size-select').value;
                 
                 // Check if there are any image previews
-                const previewContainers = document.querySelectorAll('.image-preview');
-                
-                // Store original preview data
-                const originalImagesData = [];
-                previewContainers.forEach(container => {
-                    const img = container.querySelector('img');
-                    originalImagesData.push({
-                        src: img.src,
-                        fileName: img.dataset.fileName || 'image.png'
-                    });
-                });
-                
                 if (previewContainers.length > 0) {
                     // We have images to upload - use FormData
                     const formData = new FormData();
@@ -1325,7 +1453,73 @@
                 } else {
                     // Update AI message with error
                     const aiContent = aiMessageElement.querySelector('.ai-message');
-                    aiContent.innerHTML = `<div class="message-content">Error: ${error.message}</div>`;
+                    
+                    // Try to get additional error data
+                    let originalPrompt = prompt;
+                    let originalSize = selectedSize || "1024x1536";
+                    let technicalDetails = error.message;
+                    let showResubmit = true;
+                    
+                    // Create better error display with resubmit option
+                    aiContent.innerHTML = `
+                        <div class="error-display">
+                            <div class="error-icon">⚠️</div>
+                            <div class="error-message">${error.message}</div>
+                            ${getSafetyTips(technicalDetails)}
+                            
+                            <div class="error-actions">
+                                <button class="error-btn resubmit-btn">Try Again</button>
+                                <button class="error-btn edit-btn">Edit Prompt</button>
+                            </div>
+                            
+                            <details class="error-details">
+                                <summary>Technical Details</summary>
+                                <pre>${technicalDetails}</pre>
+                            </details>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for the error action buttons
+                    const resubmitBtn = aiContent.querySelector('.resubmit-btn');
+                    const editBtn = aiContent.querySelector('.edit-btn');
+                    
+                    if (resubmitBtn) {
+                        resubmitBtn.addEventListener('click', () => {
+                            // Just retry with the same prompt
+                            promptInput.value = originalPrompt;
+                            if (sizeSelect) sizeSelect.value = originalSize;
+                            
+                            // Remove the error message
+                            aiMessageElement.remove();
+                            
+                            // Restore original images if they were saved
+                            originalImagesData.forEach(preview => {
+                                addImagePreview(preview.src, preview.fileName);
+                            });
+                            
+                            // Trigger generation again
+                            generateBtn.click();
+                        });
+                    }
+                    
+                    if (editBtn) {
+                        editBtn.addEventListener('click', () => {
+                            // Set the prompt for editing
+                            promptInput.value = originalPrompt;
+                            if (sizeSelect) sizeSelect.value = originalSize;
+                            
+                            // Restore original images if they were saved
+                            originalImagesData.forEach(preview => {
+                                addImagePreview(preview.src, preview.fileName);
+                            });
+                            
+                            // Remove the error message
+                            aiMessageElement.remove();
+                            
+                            // Focus on the text input
+                            promptInput.focus();
+                        });
+                    }
                 }
                 
                 // Remove flying text on error
